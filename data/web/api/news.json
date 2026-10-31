@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "date": "2024-03-02",
+    "headline": "Northwind leads Series B in Helios",
+    "body": "London investor Northwind Capital invested 40 million euros in Helios Robotics to scale production of the Atlas Arm."
+  },
+  {
+    "id": 2,
+    "date": "2024-05-17",
+    "headline": "Verdant Grid and Corvid Analytics announce partnership",
+    "body": "Verdant Grid has partnered with Corvid Analytics to bring forecasting models into GridMind."
+  },
+  {
+    "id": 3,
+    "date": "2024-09-09",
+    "headline": "Northwind backs battery maker",
+    "body": "Northwind Capital Partners LLP invested in Lumen Batteries, the Turin solid-state battery manufacturer."
+  }
+]

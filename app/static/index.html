@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Knowledge Graph Analytics</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 960px; margin: 2rem auto; padding: 0 1rem; color: #1d2433; }
+  h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 2rem; }
+  input, textarea, button { font: inherit; padding: .4rem .6rem; }
+  textarea { width: 100%; box-sizing: border-box; }
+  button { cursor: pointer; margin: .2rem .2rem 0 0; }
+  .note { background: #fff7e0; border-left: 4px solid #e0a800; padding: .5rem .8rem; font-size: .9rem; }
+  .answer { background: #f2f5fa; padding: .8rem; border-radius: 6px; white-space: pre-wrap; }
+  table { border-collapse: collapse; width: 100%; font-size: .85rem; margin-top: .5rem; }
+  td, th { border: 1px solid #d5dae3; padding: .25rem .4rem; text-align: left; vertical-align: top; }
+  pre { background: #f2f5fa; padding: .8rem; overflow: auto; font-size: .8rem; }
+</style>
+</head>
+<body>
+<h1>AI-powered knowledge graph analytics</h1>
+<label>API key <input id="key" size="28" placeholder="reader-demo-key"></label>
+
+<h2>Ask the graph (GraphRAG)</h2>
+<textarea id="q" rows="2">Who leads the company that partners with Corvid Analytics?</textarea>
+<button id="ask">Ask</button>
+<p class="note">Answers are generated from facts automatically extracted from the source documents.
+They are claims with cited sources, not verified facts.</p>
+<div id="answer"></div>
+
+<h2>Graph analytics (Cypher + Graph Data Science)</h2>
+<button data-a="overview">Overview</button>
+<button data-a="degree">Degree</button>
+<button data-a="pagerank">PageRank</button>
+<button data-a="betweenness">Betweenness</button>
+<button data-a="communities">Communities</button>
+<div>
+  <input id="pa" placeholder="Entity A" value="Mei Tanaka">
+  <input id="pb" placeholder="Entity B" value="Northwind">
+  <button id="path">Shortest path</button>
+</div>
+<pre id="out"></pre>
+
+<script>
+const keyEl = document.getElementById("key");
+keyEl.value = localStorage.getItem("kgKey") || "";
+keyEl.onchange = () => localStorage.setItem("kgKey", keyEl.value);
+
+async function call(url, opts = {}) {
+  const r = await fetch(url, {...opts, headers: {"Content-Type": "application/json", "X-API-Key": keyEl.value}});
+  const body = await r.json();
+  if (!r.ok) throw new Error(body.detail || r.status);
+  return body;
+}
+const esc = s => String(s ?? "").replace(/[&<>]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c]));
+
+document.getElementById("ask").onclick = async () => {
+  const box = document.getElementById("answer");
+  box.textContent = "Thinking...";
+  try {
+    const r = await call("/ask", {method: "POST", body: JSON.stringify({question: document.getElementById("q").value})});
+    const facts = r.context.facts.map(f =>
+      `<tr><td>${esc(f.source)}</td><td>${esc(f.type)}</td><td>${esc(f.target)}</td><td>${esc((f.sources || []).join(", "))}</td><td>${esc((f.evidence || []).join(" / "))}</td></tr>`).join("");
+    box.innerHTML = `<div class="answer">${esc(r.answer)}</div>
+      <p>Cited sources: ${esc(r.citations.join(", ") || "none")} - ${r.latency_s}s - ${r.prompt_tokens + r.completion_tokens} tokens</p>
+      <details><summary>Retrieved subgraph (${r.context.facts.length} facts)</summary>
+      <table><tr><th>source</th><th>relation</th><th>target</th><th>documents</th><th>evidence</th></tr>${facts}</table></details>`;
+  } catch (e) { box.textContent = "Error: " + e.message; }
+};
+
+const out = document.getElementById("out");
+const show = async url => { out.textContent = "Loading..."; try { out.textContent = JSON.stringify(await call(url), null, 1); } catch (e) { out.textContent = "Error: " + e.message; } };
+document.querySelectorAll("[data-a]").forEach(b => b.onclick = () => show("/analytics/" + b.dataset.a));
+document.getElementById("path").onclick = () =>
+  show(`/path?a=${encodeURIComponent(document.getElementById("pa").value)}&b=${encodeURIComponent(document.getElementById("pb").value)}`);
+</script>
+</body>
+</html>

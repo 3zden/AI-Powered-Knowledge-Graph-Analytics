@@ -1,0 +1,70 @@
+services:
+  namenode:
+    image: apache/hadoop:3.4.1
+    hostname: namenode
+    command: ["hdfs", "namenode"]
+    user: root
+    env_file: hadoop.env
+    environment:
+      ENSURE_NAMENODE_DIR: /hadoop/data/dfs/name
+    ports: ["9870:9870"]
+    volumes: [namenode:/hadoop/data]
+
+  datanode:
+    image: apache/hadoop:3.4.1
+    hostname: datanode
+    command: ["hdfs", "datanode"]
+    user: root
+    env_file: hadoop.env
+    volumes: [datanode:/hadoop/data]
+    depends_on: [namenode]
+
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-graphpass123}
+      NEO4J_PLUGINS: '["graph-data-science"]'
+      NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 256M
+      NEO4J_dbms_security_procedures_unrestricted: gds.*
+    ports: ["7474:7474", "7687:7687"]
+    volumes: [neo4j:/data, neo4j_plugins:/plugins]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7474 || exit 1"]
+      interval: 10s
+      retries: 30
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes: [ollama:/root/.ollama]
+
+  # Heterogeneous "web + REST API" source the crawler collects from.
+  website:
+    image: python:3.12-slim
+    command: ["python", "-m", "http.server", "8000", "--directory", "/srv"]
+    volumes: ["./data/web:/srv:ro"]
+
+  app:
+    build: ./app
+    environment:
+      HDFS_URL: http://namenode:9870
+      HDFS_FS: hdfs://namenode:8020
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-graphpass123}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://ollama:11434/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:3b}
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
+      SEED_URLS: http://website:8000/index.html
+      API_URLS: http://website:8000/api/news.json
+      API_KEYS: ${API_KEYS:-reader-demo-key:reader,admin-demo-key:admin}
+      RETENTION_DAYS: ${RETENTION_DAYS:-365}
+    ports: ["8080:8080"]
+    volumes: ["./data:/data", "./reports:/reports"]
+    depends_on:
+      neo4j: {condition: service_healthy}
+      namenode: {condition: service_started}
+      datanode: {condition: service_started}
+      website: {condition: service_started}
+      ollama: {condition: service_started}
+
+volumes: {namenode: {}, datanode: {}, neo4j: {}, neo4j_plugins: {}, ollama: {}}
